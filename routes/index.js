@@ -3,12 +3,14 @@ const router = express.Router();
 const mysql = require('mysql');
 const mybatisMapper = require('mybatis-mapper');
 const format = {language: 'sql', indent: '  '};
+require("dotenv").config();
 
 const connection = mysql.createConnection({
   host     : process.env.DATABASE_HOST,
   user     : process.env.DATABASE_USER,
-  password : process.env.DATABASE_PWD,
+  password : process.env.DATABASE_PWD+'##',
   database : process.env.DATABASE_DATABASE,
+  multipleStatements: true
 });
 
 connection.connect(function(err) {

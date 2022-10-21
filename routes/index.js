@@ -4,6 +4,10 @@ const mysql = require('mysql');
 const mybatisMapper = require('mybatis-mapper');
 const format = {language: 'sql', indent: '  '};
 require("dotenv").config();
+const textToSpeech = require('@google-cloud/text-to-speech');
+const fs = require('fs');
+const util = require('util');
+const client = new textToSpeech.TextToSpeechClient();
 
 const connection = mysql.createConnection({
   host     : process.env.DATABASE_HOST,
@@ -85,7 +89,7 @@ router.post('/join', function(req, res, next) {
         return;
       }
   
-      res.send({success: true, msg: ''});
+      res.send({success: true, msg: '회원가입 완료'});
     });
   });
 });
@@ -128,6 +132,19 @@ router.post('/login', function(req, res, next) {
       res.send({success: true, msg: ''});
     });
   });
+});
+
+router.get('/listen', async (req, res, next) => {
+  console.log(req.query);
+  const request = {
+    input: {text: req.query.text},
+    voice: {languageCode: req.query.lang, ssmlGender: req.query.voice},
+    audioConfig: {audioEncoding: 'LINEAR16', speakingRate : 1},
+  };
+
+  const [response] = await client.synthesizeSpeech(request);
+
+  res.send(response.audioContent);
 });
 
 module.exports = router;

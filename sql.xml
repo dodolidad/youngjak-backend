@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="youngjak">  
+
+  <select id="getUserIdCnt">
+    SELECT	COUNT(*) AS USER_ID_CNT
+    FROM		USERS
+    WHERE		USER_ID = #{userId}
+  </select>
+
+  <select id="getUserPwdCnt">
+    SELECT	COUNT(*) AS USER_PWD_CNT
+    FROM		USERS
+    WHERE		USER_ID = #{userId}
+    AND     USER_PWD = HEX(AES_ENCRyPT(#{userPwd}, 'youngjak'))
+  </select>
+
+  <select id="getUser">
+    SELECT	USER_ID, 
+            USER_AUTH,
+            CHG_PWD_QST,
+            CHG_PWD_ANS,
+            CREATE_DATE
+    FROM		USERS
+    WHERE		USER_ID = #{userId}
+    AND     USER_PWD = HEX(AES_ENCRyPT(#{userPwd}, 'youngjak'))
+  </select>
+
+  <insert id="insertUser">
+    INSERT INTO USERS
+      (
+      USER_ID,
+      USER_PWD,
+      CHG_PWD_QST,
+      CHG_PWD_ANS,
+      CREATE_DATE
+      )
+    VALUES
+    (
+      #{userId},
+      HEX(AES_ENCRyPT(#{userPwd}, 'youngjak')),
+      #{chgPwdQst},
+      #{chgPwdAns},
+      NOW()
+    )
+  </insert>
+
+  <insert id="inserText">
+    INSERT INTO TEXTS
+      (
+      INSERT_USER_ID,
+      TEXT_KR,
+      TEXT_EN
+      )
+    VALUES
+      (
+      #{userId},
+      #{textKr},
+      #{textEn}
+      )
+  </insert>
+
+  <select id="getTextOneRandomForGuest">
+    SELECT	TEXT_ID, INSERT_USER_ID, TEXT_KR, TEXT_EN
+    FROM		TEXTS
+    ORDER BY
+            RAND()
+    LIMIT 	1
+  </select>
+
+  <select id="getSuggestTextOneRandom">
+    SELECT	1
+  </select>
+
+  <select id="getMyTextOneRandom">
+    SELECT	1
+  </select>
+
+  <select id="getAllTextOneRandom">
+    SELECT	1
+  </select>
+
+</mapper>

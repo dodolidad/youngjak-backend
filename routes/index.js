@@ -9,6 +9,7 @@ const fs = require('fs');
 const util = require('util');
 const client = new textToSpeech.TextToSpeechClient();
 const jwt = require('jsonwebtoken');
+var macaddress = require('macaddress');
 
 const pool = mysql.createPool({
   connectionLimit : 10,
@@ -61,12 +62,14 @@ router.post('/join', function async(req, res, next) {
 
   pool.getConnection(function (err, connection) {
     if (err) {
+      console.log(err);
       res.send({success: false, msg: '데이터 처리 실패. 다시 시도하세요.'});
       return;
     }
 
-    connection.query(mybatisMapper.getStatement('youngjak', 'selectUserIdCnt', param, format), function (error, results, fields) {
+    connection.query(mybatisMapper.getStatement('youngjak', 'getUserIdCnt', param, format), function (error, results, fields) {
       if (error) {
+        console.log(error);
         res.send({success: false, msg: '데이터 처리 실패. 다시 시도하세요.'});
         connection.release();
         return;
@@ -80,6 +83,7 @@ router.post('/join', function async(req, res, next) {
 
       connection.query(mybatisMapper.getStatement('youngjak', 'insertUser', param, format), function (error, results, fields) {
         if (error) {
+          console.log(error);
           res.send({success: 1, msg: '데이터 처리 실패. 다시 시도하세요.'});
           connection.release();
           return;
@@ -116,7 +120,7 @@ router.post('/login', function(req, res, next) {
       return;
     }
 
-    connection.query(mybatisMapper.getStatement('youngjak', 'selectUserIdCnt', param, format), function (error, results, fields) {
+    connection.query(mybatisMapper.getStatement('youngjak', 'getUserIdCnt', param, format), function (error, results, fields) {
       if (error) {
         res.send({success: false, msg: '데이터 처리 실패. 다시 시도하세요.'});
         connection.release();
@@ -129,43 +133,88 @@ router.post('/login', function(req, res, next) {
         return;
       }
 
-      connection.query(mybatisMapper.getStatement('youngjak', 'selectUserPwdCnt', param, format), function (error, results, fields) {
+      connection.query(mybatisMapper.getStatement('youngjak', 'getUser', param, format), function (error, results, fields) {
         if (error) {
           res.send({success: false, msg: '데이터 처리 실패. 다시 시도하세요.'});
           connection.release();
           return;
         }
 
-        if(results[0].USER_PWD_CNT === 0) {
+        if(results.length !== 1) {
           res.send({success: false, msg: '비밀번호가 일치하지 않습니다.'});
           connection.release();
           return;
         }
 
-        connection.release();
-    
-        res.send({success: true, msg: '', token: jwt.sign({ userId: param.userId }, process.env.JWT_SECRET_KEY)});
+        // const macAddr = JSON.stringify(macaddress.networkInterfaces(), null, 5)).wi;
+        macaddress.one(function (err, mac) {
+          if(err) {
+            res.send({success: false, msg: '데이터 처리 실패. 다시 시도하세요.'});
+            connection.release();
+            return;
+          }
+
+          connection.release();
+
+          let userAuth = results[0].USER_AUTH;
+          console.log(mac);
+
+          if(userAuth === 'A') {
+            res.send({success: true, msg: '', 
+              token: jwt.sign({ userId: param.userId, mac: mac }, process.env.JWT_SECRET_KEY), 
+              token1: jwt.sign({ userAuth: userAuth, mac: mac }, process.env.JWT_SECRET_KEY), });
+          } else {
+            res.send({success: true, msg: '', token: jwt.sign({ userId: param.userId, mac: mac }, process.env.JWT_SECRET_KEY)});
+          }
+        });
       });
     });
   });
 });
 
-router.post('/setText', function(req, res, next) {
+router.post('/setText', async function(req, res, next) {
   const param = req.body;
   let success = true;
   let msg = '';
-  console.log(param);
+  let mac;
+  let decoded;
+  let decoded1;
+  console.log('1111111');
+  console.log(param.token);
+  console.log(param.token1);
 
-  jwt.verify(param.token, process.env.JWT_SECRET_KEY, function(err, decoded) {
-    if(err) {
-      res.send({success: false, errName: 'JWT_FAIL', msg: '인증되지 않았습니다. 로그인 후 이용해주세요.'});
-      return;
-    }
+  if(param.token1 === null || param.token1 === undefined) {
+    console.log('쓰기 권한이 없습니다');
+    res.send({success: false, msg: '쓰기 권한이 없는 계정입니다.'});
+    return;
+  }
 
-    param.userId = decoded.userId;
-    console.log(decoded.userId);
-  });
-  console.log(param);
+  if(param.token === null || param.token === undefined) {
+    res.send({success: false, errName: 'JWT_FAIL', msg: '인증되지 않았습니다. 로그인 후 이용해주세요.'});
+    return;
+  }
+
+  try {
+    mac = await macaddress.one();
+  } catch (err) {
+    console.log('mac err');
+    res.send({success: false, errName: 'JWT_FAIL', msg: '인증되지 않았습니다. 로그인 후 이용해주세요.'});
+    return;
+  }
+
+  try {
+    decoded = jwt.verify(param.token, process.env.JWT_SECRET_KEY);
+    decoded1 = jwt.verify(param.token1, process.env.JWT_SECRET_KEY);
+  } catch (err) {
+    console.log('jwt err');
+    res.send({success: false, errName: 'JWT_FAIL', msg: '인증되지 않았습니다. 로그인 후 이용해주세요.'});
+    return;
+  }
+
+  if(mac !== decoded.mac || mac !== decoded1.mac) {
+    res.send({success: false, errName: 'JWT_FAIL', msg: '인증되지 않았습니다. 로그인 후 이용해주세요.'});
+    return;
+  }
 
   if(param.textKr === undefined || param.textKr === null || param.textKr === '') {
     success = false;
@@ -180,14 +229,18 @@ router.post('/setText', function(req, res, next) {
     return;
   }
 
+  param.userId = decoded.userId;
+
   pool.getConnection(function (err, connection) {
     if (err) {
+      console.log('getConnection err');
       res.send({success: false, msg: '데이터 처리 실패. 다시 시도하세요.'});
       return;
     }
 
     connection.beginTransaction(function(err) {
       if (err) {
+        console.log('begintran err');
         res.send({success: false, msg: '데이터 처리 실패. 다시 시도하세요.'});
         connection.release();
         return;
@@ -195,14 +248,12 @@ router.post('/setText', function(req, res, next) {
 
       connection.query(mybatisMapper.getStatement('youngjak', 'inserText', param, format), function (error, results, fields) {
         if (error) {
-          console.log(error);
+          console.log('inserText error : ' + error);
           connection.rollback();
           res.send({success: false, msg: '데이터 처리 실패. 다시 시도하세요.'});
           connection.release();
           return;
         }
-        console.log(results);
-        console.log(results.insertId);
 
         connection.commit();
 
@@ -210,6 +261,30 @@ router.post('/setText', function(req, res, next) {
         
         res.send({success: true, msg: '데이터 저장 성공.'});
       });
+    });
+  });
+});
+
+router.get('/getTextOneRandom', async function(req, res, next) {
+  const param = req.body;
+
+  pool.getConnection(function (err, connection) {
+    if (err) {
+      console.log('getConnection err');
+      res.send({success: false, msg: '데이터 처리 실패. 다시 시도하세요.'});
+      return;
+    }
+
+    connection.query(mybatisMapper.getStatement('youngjak', 'selectTextOneRandom', param, format), function (error, results, fields) {
+      if (error) {
+        console.log('selectTextOneRandom error : ' + error);
+        connection.release();
+        return;
+      }
+
+      connection.release();
+      
+      res.send({success: true, msg: '', results});
     });
   });
 });
@@ -233,7 +308,7 @@ router.post('/setText', function(req, res, next) {
 //     return;
 //   }
 
-//   connection.query(mybatisMapper.getStatement('youngjak', 'selectUserIdCnt', param, format), function (error, results, fields) {
+//   connection.query(mybatisMapper.getStatement('youngjak', 'getUserIdCnt', param, format), function (error, results, fields) {
 //     if (error) {
 //       res.send({success: false, msg: '데이터 처리 실패. 다시 시도하세요.'});
 //       return;
@@ -244,7 +319,7 @@ router.post('/setText', function(req, res, next) {
 //       return;
 //     }
 
-//     connection.query(mybatisMapper.getStatement('youngjak', 'selectUserPwdCnt', param, format), function (error, results, fields) {
+//     connection.query(mybatisMapper.getStatement('youngjak', 'getUserPwdCnt', param, format), function (error, results, fields) {
 //       if (error) {
 //         res.send({success: 1, msg: '데이터 처리 실패. 다시 시도하세요.'});
 //         return;

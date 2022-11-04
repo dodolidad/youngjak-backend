@@ -48,24 +48,46 @@
   <insert id="inserText">
     INSERT INTO TEXTS
       (
-      INSERT_USER_ID,
+      TEXT_ID,
+      IDX,
       TEXT_KR,
-      TEXT_EN
+      TEXT_EN,
+      INTERV,
+      INSERT_USER_ID
+      )
+    VALUES
+      (
+      #{textId},
+      #{idx},
+      #{textKr},
+      #{textEn},
+      LENGTH(#{textEn}) * 100,
+      #{userId}
+      )
+  </insert>
+
+  <insert id="inserUserText">
+    INSERT INTO USER_TEXT
+      (
+      USER_ID,
+      TEXT_ID,
+      USE_YN
       )
     VALUES
       (
       #{userId},
-      #{textKr},
-      #{textEn}
+      #{textId},
+      'Y'
       )
   </insert>
 
   <select id="getTextOneRandomForGuest">
-    SELECT	TEXT_ID, INSERT_USER_ID, TEXT_KR, TEXT_EN
-    FROM		TEXTS
+    SELECT	TEXT_ID, IDX, INTERV, TEXT_KR, TEXT_EN, INSERT_USER_ID,
+            SUM(INTERV)OVER(PARTITION BY TEXT_ID) AS SUM_INTERV
+    FROM		TEXTS T1
+    WHERE	  EXISTS (SELECT TEXT_ID FROM (SELECT TEXT_ID FROM texts GROUP BY TEXT_ID ORDER BY RAND() LIMIT 1) T2 WHERE T1.TEXT_ID = T2.TEXT_ID)
     ORDER BY
-            RAND()
-    LIMIT 	1
+            TEXT_ID, IDX
   </select>
 
   <select id="getSuggestTextOneRandom">

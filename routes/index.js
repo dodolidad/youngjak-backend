@@ -41,15 +41,15 @@ router.post('/setText', async function(req, res, next) {
   let textKrs = param.textKr.split('\n');
 
   for(let i = 1; i <= textKrs.length; i++) {
-    let textKr = textKrs[i - 1].substr(5);
-    let textVoice = textKrs[i - 1].substr(0, 5);
-    let textName = '';
+    let textKr = textKrs[i - 1].substr(3);
+    let textVoice = textKrs[i - 1].substr(0, 3);
+    let textName = 'ko-KR-Wavenet-B';
     let outputFile = './sounds/' + param.textId + i + 'kr.mp3';
 
-    if(textVoice === '남1 : ') textName = 'ko-KR-Wavenet-C'
-    else if(textVoice === '남2 : ') textName = 'ko-KR-Wavenet-D'
-    else if(textVoice === '여1 : ') textName = 'ko-KR-Wavenet-B'
-    else if(textVoice === '여2 : ') textName = 'ko-KR-Wavenet-A'
+    if(textVoice === '남1:') textName = 'ko-KR-Wavenet-C'
+    else if(textVoice === '남2:') textName = 'ko-KR-Wavenet-D'
+    else if(textVoice === '여1:') textName = 'ko-KR-Wavenet-B'
+    else if(textVoice === '여2:') textName = 'ko-KR-Wavenet-A'
 
     const request = {
       input: {text: textKr},
@@ -69,15 +69,15 @@ router.post('/setText', async function(req, res, next) {
   let textEns = param.textEn.split('\n');
 
   for(let i = 1; i <= textEns.length; i++) {
-    let textEn = textEns[i - 1].substr(5);
-    let textVoice = textEns[i - 1].substr(0, 5);
-    let textName = '';
+    let textEn = textEns[i - 1].substr(3);
+    let textVoice = textEns[i - 1].substr(0, 3);
+    let textName = 'en-US-Wavenet-C';
     let outputFile = './sounds/' + param.textId + i + 'en.mp3';
 
-    if(textVoice === 'M1 : ') textName = 'en-US-Wavenet-A'
-    else if(textVoice === 'M2 : ') textName = 'en-US-Wavenet-B'
-    else if(textVoice === 'F1 : ') textName = 'en-US-Wavenet-C'
-    else if(textVoice === 'F2 : ') textName = 'en-US-Wavenet-F'
+    if(textVoice === '남1:') textName = 'en-US-Wavenet-A'
+    else if(textVoice === '남2:') textName = 'en-US-Wavenet-B'
+    else if(textVoice === '여1:') textName = 'en-US-Wavenet-C'
+    else if(textVoice === '여2:') textName = 'en-US-Wavenet-F'
 
     const request = {
       input: {text: textEn},
@@ -106,6 +106,46 @@ router.post('/setText', async function(req, res, next) {
 
       if(i === 1) await connection.query(mybatisMapper.getStatement('youngjak', 'inserUserText', newParam, format));
     }
+
+    await connection.commit();
+  } catch (err) {
+      await connection.rollback();
+
+      res.send({success: false, msg: '데이터 저장 실패.'});
+      return;
+  } finally {
+      connection.release();
+  }
+
+  res.send({success: true, msg: '데이터 저장 성공.'});
+});
+
+router.post('/setMyText', async function(req, res, next) {
+  const param = req.body;
+
+  try {
+    decoded = jwt.verify(param.token, process.env.JWT_SECRET_KEY);
+  } catch (err) {
+    return {success: false, errName: 'JWT_FAIL', msg: '인증되지 않았습니다. 로그인 후 이용해주세요.'};
+  }
+
+  param.userId = decoded.userId;
+  param.useYn = 'Y';
+
+  const connection = await pool.getConnection(async conn => conn);
+
+  try {
+    await connection.beginTransaction();
+    console.log(param);
+
+    let [results] = await connection.query(mybatisMapper.getStatement('youngjak', 'getUserText', param, format));
+    console.log(results);
+    if(results.length !== 0) {
+      res.send({success: false, msg: '이미 저장되어있습니다.'});
+      return;
+    }
+    
+    await connection.query(mybatisMapper.getStatement('youngjak', 'inserUserText', param, format));
 
     await connection.commit();
   } catch (err) {

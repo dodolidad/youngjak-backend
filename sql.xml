@@ -26,6 +26,16 @@
     AND     USER_PWD = HEX(AES_ENCRyPT(#{userPwd}, 'youngjak'))
   </select>
 
+  <select id="getUserText">
+    SELECT	USER_ID, 
+            TEXT_ID,
+            USE_YN
+    FROM    USER_TEXT
+    WHERE		1=1
+    AND     USER_ID = #{userId}
+    AND     TEXT_ID = #{textId}
+  </select>
+
   <insert id="insertUser">
     INSERT INTO USERS
       (
@@ -77,7 +87,7 @@
       (
       #{userId},
       #{textId},
-      'Y'
+      #{useYn}
       )
   </insert>
 

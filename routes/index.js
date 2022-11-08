@@ -25,35 +25,56 @@ const pool = mysql.createPool({
 
 mybatisMapper.createMapper([ './sql.xml' ]);
 
-router.post('/setText', async function(req, res, next) {
+router.post('/insertText', async function(req, res, next) {
   const param = req.body;
 
   //유효성 체크
-  let chkValidResult = await chkValid('/setText', param);
+  const chkValidResult = await chkValid('/selectText', param);
   if(!chkValidResult.success) {
     res.send(chkValidResult);
     return;
   }
 
-  param.userId = decoded.userId;
-  param.textId = Date.now();
+  const text = param.textKr + '\n' + param.textEn;
+  const texts = text.split('\n');
+  const voiceNames = [
+    {textVoice: '남1:', voiceName: 'ko-KR-Wavenet-C'},
+    {textVoice: '남2:', voiceName: 'ko-KR-Wavenet-D'},
+    {textVoice: '여1:', voiceName: 'ko-KR-Wavenet-A'},
+    {textVoice: '여2:', voiceName: 'ko-KR-Wavenet-B'},
+    {textVoice: 'M1:', voiceName: 'en-US-Wavenet-A'},
+    {textVoice: 'M2:', voiceName: 'en-US-Wavenet-B'},
+    {textVoice: 'F1:', voiceName: 'en-US-Wavenet-C'},
+    {textVoice: 'F2:', voiceName: 'en-US-Wavenet-F'},
+  ]
 
-  let textKrs = param.textKr.split('\n');
+  const textId = Date.now();
 
-  for(let i = 1; i <= textKrs.length; i++) {
-    let textKr = textKrs[i - 1].substr(3);
-    let textVoice = textKrs[i - 1].substr(0, 3);
-    let textName = 'ko-KR-Wavenet-B';
-    let outputFile = './sounds/' + param.textId + i + 'kr.mp3';
+  for(let i = 0; i < texts.length; i++) {
+    const text1 = texts[i];
+    const textVoice = text1.substring(0, 3);
+    const voiceNameIndex = voiceNames.findIndex(data => data.textVoice === textVoice);
 
-    if(textVoice === '남1:') textName = 'ko-KR-Wavenet-C'
-    else if(textVoice === '남2:') textName = 'ko-KR-Wavenet-D'
-    else if(textVoice === '여1:') textName = 'ko-KR-Wavenet-B'
-    else if(textVoice === '여2:') textName = 'ko-KR-Wavenet-A'
+    if(voiceNameIndex === -1) {
+      res.send({success: false, msg: '잘못된 문장이 존재합니다.'});
+      return;
+    }
+  }
+  
+  for(let i = 0; i < texts.length; i++) {
+    const text1 = texts[i];
+    const ttsText = text1.substring(3);
+    const textVoice = text1.substring(0, 3);
+    const voiceNameIndex = voiceNames.findIndex(data => data.textVoice === textVoice);
+    const voiceName = voiceNames[voiceNameIndex].voiceName;
+    const languageCode = voiceName.substring(0, 5);
+    const preDir = '../frontend/public/sounds/';
+    const idx = i + 1;
+    const outputFile = '' + preDir + textId + idx + languageCode + '.mp3';
 
     const request = {
-      input: {text: textKr},
-      voice: {languageCode: 'ko-KR', name: textName},
+      input: {text: ttsText},
+      voice: {languageCode: languageCode, name: voiceName},
       audioConfig: {audioEncoding: 'MP3'},
     };
     try{
@@ -61,62 +82,45 @@ router.post('/setText', async function(req, res, next) {
       const writeFile = util.promisify(fs.writeFile);
       await writeFile(outputFile, response.audioContent, 'binary');
     }catch(err) {
+      console.log(err);
       res.send({success: false, msg: '음성파일 저장 실패.'});
       return;
     }
   }
 
-  let textEns = param.textEn.split('\n');
-
-  for(let i = 1; i <= textEns.length; i++) {
-    let textEn = textEns[i - 1].substr(3);
-    let textVoice = textEns[i - 1].substr(0, 3);
-    let textName = 'en-US-Wavenet-C';
-    let outputFile = './sounds/' + param.textId + i + 'en.mp3';
-
-    if(textVoice === '남1:') textName = 'en-US-Wavenet-A'
-    else if(textVoice === '남2:') textName = 'en-US-Wavenet-B'
-    else if(textVoice === '여1:') textName = 'en-US-Wavenet-C'
-    else if(textVoice === '여2:') textName = 'en-US-Wavenet-F'
-
-    const request = {
-      input: {text: textEn},
-      voice: {languageCode: 'en-US', name: textName},
-      audioConfig: {audioEncoding: 'MP3'},
-    };
-    try{
-      const [response] = await client.synthesizeSpeech(request);
-      const writeFile = util.promisify(fs.writeFile);
-      await writeFile(outputFile, response.audioContent, 'binary');
-    }catch(err) {
-      res.send({success: false, msg: '음성파일 저장 실패.'});
-      return;
-    }
-  }
-
-  const connection = await pool.getConnection(async conn => conn);
-
+  const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    
-    for(let i = 1; i <= textKrs.length; i++) {
-      let newParam = {textId: param.textId, idx: i, textKr: textKrs[i - 1], textEn: textEns[i - 1], userId: param.userId};
 
-      await connection.query(mybatisMapper.getStatement('youngjak', 'inserText', newParam, format));
+    for(let i = 0; i < texts.length; i++) {
+      const text1 = texts[i];
+      const textVoice = text1.substring(0, 3);
+      const voiceNameIndex = voiceNames.findIndex(data => data.textVoice === textVoice);
+      const voiceName = voiceNames[voiceNameIndex].voiceName;
+      const languageCode = voiceName.substring(0, 5);
+      const idx = i + 1;
 
-      if(i === 1) await connection.query(mybatisMapper.getStatement('youngjak', 'inserUserText', newParam, format));
+      param.textId = textId;
+      param.idx = idx;
+      param.text1 = text1;
+      param.textLang = languageCode;
+      param.userId = decoded.userId;
+      param.useYn = 'Y';
+
+      await connection.query(mybatisMapper.getStatement('youngjak', 'insertText', param, format));
+      if(i === 0) await connection.query(mybatisMapper.getStatement('youngjak', 'inserUserText', param, format));
     }
 
     await connection.commit();
   } catch (err) {
-      await connection.rollback();
-
-      res.send({success: false, msg: '데이터 저장 실패.'});
-      return;
+    console.log(err);
+    await connection.rollback();
+    res.send({success: false, msg: '데이터 저장 실패.'});
+    return;
   } finally {
-      connection.release();
+    connection.release();
   }
-
+  
   res.send({success: true, msg: '데이터 저장 성공.'});
 });
 
@@ -149,12 +153,12 @@ router.post('/setMyText', async function(req, res, next) {
 
     await connection.commit();
   } catch (err) {
-      await connection.rollback();
+    await connection.rollback();
 
-      res.send({success: false, msg: '데이터 저장 실패.'});
-      return;
+    res.send({success: false, msg: '데이터 저장 실패.'});
+    return;
   } finally {
-      connection.release();
+    connection.release();
   }
 
   res.send({success: true, msg: '데이터 저장 성공.'});
@@ -167,10 +171,10 @@ router.get('/getTextOneRandomForGuest', async function(req, res, next) {
     const [results, fields] = await connection.query(mybatisMapper.getStatement('youngjak', 'getTextOneRandomForGuest', {}, format));
     res.send({success: true, msg: '', results});
   } catch (err) {
-      res.send({success: false, msg: '데이터 조회 실패.'});
-      return;
+    res.send({success: false, msg: '데이터 조회 실패.'});
+    return;
   } finally {
-      connection.release();
+    connection.release();
   }
 });
 
@@ -309,7 +313,7 @@ router.post('/login', async function(req, res, next) {
 const chkValid = async (pathName, param) => {
   let mac;
 
-  if(pathName === '/setText') {
+  if(pathName === '/selectText') {
     if(param.token1 === null || param.token1 === undefined) {
       return {success: false, msg: '쓰기 권한이 없는 계정입니다.'};
     }

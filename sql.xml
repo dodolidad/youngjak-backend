@@ -2,40 +2,6 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="youngjak">  
 
-  <select id="getUserIdCnt">
-    SELECT	COUNT(*) AS USER_ID_CNT
-    FROM		USERS
-    WHERE		USER_ID = #{userId}
-  </select>
-
-  <select id="getUserPwdCnt">
-    SELECT	COUNT(*) AS USER_PWD_CNT
-    FROM		USERS
-    WHERE		USER_ID = #{userId}
-    AND     USER_PWD = HEX(AES_ENCRyPT(#{userPwd}, 'youngjak'))
-  </select>
-
-  <select id="getUser">
-    SELECT	USER_ID, 
-            USER_AUTH,
-            CHG_PWD_QST,
-            CHG_PWD_ANS,
-            CREATE_DATE
-    FROM		USERS
-    WHERE		USER_ID = #{userId}
-    AND     USER_PWD = HEX(AES_ENCRyPT(#{userPwd}, 'youngjak'))
-  </select>
-
-  <select id="getUserText">
-    SELECT	USER_ID, 
-            TEXT_ID,
-            USE_YN
-    FROM    USER_TEXT
-    WHERE		1=1
-    AND     USER_ID = #{userId}
-    AND     TEXT_ID = #{textId}
-  </select>
-
   <insert id="insertUser">
     INSERT INTO USERS
       (
@@ -55,26 +21,60 @@
     )
   </insert>
 
-  <insert id="inserText">
+  <select id="selectUserIdCnt">
+    SELECT	COUNT(*) AS USER_ID_CNT
+    FROM		USERS
+    WHERE		USER_ID = #{userId}
+  </select>
+
+  <select id="selectUserPwdCnt">
+    SELECT	COUNT(*) AS USER_PWD_CNT
+    FROM		USERS
+    WHERE		USER_ID = #{userId}
+    AND     USER_PWD = HEX(AES_ENCRyPT(#{userPwd}, 'youngjak'))
+  </select>
+
+  <select id="selectUser">
+    SELECT	USER_ID, 
+            USER_AUTH,
+            CHG_PWD_QST,
+            CHG_PWD_ANS,
+            CREATE_DATE
+    FROM		USERS
+    WHERE		USER_ID = #{userId}
+    AND     USER_PWD = HEX(AES_ENCRyPT(#{userPwd}, 'youngjak'))
+  </select>
+
+  <insert id="insertText">
     INSERT INTO TEXTS
       (
       TEXT_ID,
       IDX,
-      TEXT_KR,
-      TEXT_EN,
-      INTERV,
-      INSERT_USER_ID
+      TEXT1,
+      TEXT_LANG,
+      CREATE_USER_ID,
+      CREATE_DATETIME
       )
     VALUES
       (
       #{textId},
       #{idx},
-      #{textKr},
-      #{textEn},
-      LENGTH(#{textEn}) * 100,
-      #{userId}
+      #{text1},
+      #{textLang},
+      #{userId},
+      NOW()
       )
   </insert>
+
+  <select id="selectText">
+    SELECT	TEXT_ID, 
+            IDX,
+            TEXT1,
+            TEXT_LANG,
+            CREATE_USER_ID,
+            CREATE_DATETIME
+    WHERE   TEXT_ID = #{textId}
+  </select>
 
   <insert id="inserUserText">
     INSERT INTO USER_TEXT
@@ -91,25 +91,23 @@
       )
   </insert>
 
-  <select id="getTextOneRandomForGuest">
+  <select id="selectUserText">
+    SELECT	USER_ID, 
+            TEXT_ID,
+            USE_YN
+    FROM    USER_TEXT
+    WHERE		1=1
+    AND     USER_ID = #{userId}
+    AND     TEXT_ID = #{textId}
+  </select>
+
+  <select id="selectTextOneRandomForGuest">
     SELECT	TEXT_ID, IDX, INTERV, TEXT_KR, TEXT_EN, INSERT_USER_ID,
             SUM(INTERV)OVER(PARTITION BY TEXT_ID) AS SUM_INTERV
     FROM		TEXTS T1
     WHERE	  EXISTS (SELECT TEXT_ID FROM (SELECT TEXT_ID FROM texts GROUP BY TEXT_ID ORDER BY RAND() LIMIT 1) T2 WHERE T1.TEXT_ID = T2.TEXT_ID)
     ORDER BY
             TEXT_ID, IDX
-  </select>
-
-  <select id="getSuggestTextOneRandom">
-    SELECT	1
-  </select>
-
-  <select id="getMyTextOneRandom">
-    SELECT	1
-  </select>
-
-  <select id="getAllTextOneRandom">
-    SELECT	1
   </select>
 
 </mapper>

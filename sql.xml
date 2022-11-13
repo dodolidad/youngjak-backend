@@ -102,12 +102,36 @@
   </select>
 
   <select id="selectTextOneRandomForGuest">
-    SELECT	TEXT_ID, IDX, INTERV, TEXT_KR, TEXT_EN, INSERT_USER_ID,
-            SUM(INTERV)OVER(PARTITION BY TEXT_ID) AS SUM_INTERV
-    FROM		TEXTS T1
-    WHERE	  EXISTS (SELECT TEXT_ID FROM (SELECT TEXT_ID FROM texts GROUP BY TEXT_ID ORDER BY RAND() LIMIT 1) T2 WHERE T1.TEXT_ID = T2.TEXT_ID)
+    SELECT	TEXT_ID, IDX, TEXT1, TEXT_LANG, CREATE_USER_ID, CREATE_DATETIME, SRC, CNT, TOT_TEXT,
+            CASE
+              WHEN LEAD(TEXT_LANG)OVER() IS NULL
+                THEN 1500
+              WHEN TEXT_LANG = LEAD(TEXT_LANG)OVER()
+                THEN 1000
+                ELSE LENGTH(TOT_TEXT) * 50
+            END AS
+          INTERV
+    FROM		(
+          SELECT	TEXT_ID, IDX, TEXT1, TEXT_LANG, CREATE_USER_ID, CREATE_DATETIME,
+                CONCAT(TEXT_ID, IDX, TEXT_LANG, '.mp3') AS SRC,
+                COUNT(*)OVER() AS CNT,
+                JSON_ARRAYAGG(TEXT1)OVER(PARTITION BY TEXT_ID) AS TOT_TEXT
+          FROM		TEXTS T1
+          WHERE		EXISTS (
+                          SELECT TEXT_ID 
+                          FROM (
+                                SELECT TEXT_ID 
+                                FROM texts 
+                                <if test="textIdNot != null and textIdNot !=''">
+                                WHERE TEXT_ID not in (#{textIdNot})
+                                </if>
+                                GROUP BY TEXT_ID 
+                                ORDER BY RAND() 
+                                LIMIT 1
+                                ) T2 WHERE T1.TEXT_ID = T2.TEXT_ID)
+          ) A
     ORDER BY
-            TEXT_ID, IDX
+          TEXT_ID, IDX
   </select>
 
 </mapper>

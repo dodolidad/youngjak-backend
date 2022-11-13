@@ -19,7 +19,7 @@ const pool = mysql.createPool({
   connectionLimit : 10,
   host     : process.env.DATABASE_HOST,
   user     : process.env.DATABASE_USER,
-  password : process.env.DATABASE_PWD+'##',
+  password : process.env.DATABASE_PWD,
   database : process.env.DATABASE_DATABASE
 });
 
@@ -68,7 +68,7 @@ router.post('/insertText', async function(req, res, next) {
     const voiceNameIndex = voiceNames.findIndex(data => data.textVoice === textVoice);
     const voiceName = voiceNames[voiceNameIndex].voiceName;
     const languageCode = voiceName.substring(0, 5);
-    const preDir = '../frontend/public/sounds/';
+    const preDir = '../frontend/sounds/';
     const idx = i + 1;
     const outputFile = '' + preDir + textId + idx + languageCode + '.mp3';
 
@@ -140,10 +140,8 @@ router.post('/setMyText', async function(req, res, next) {
 
   try {
     await connection.beginTransaction();
-    console.log(param);
 
-    let [results] = await connection.query(mybatisMapper.getStatement('youngjak', 'getUserText', param, format));
-    console.log(results);
+    let [results] = await connection.query(mybatisMapper.getStatement('youngjak', 'selectUserText', param, format));
     if(results.length !== 0) {
       res.send({success: false, msg: '이미 저장되어있습니다.'});
       return;
@@ -153,6 +151,7 @@ router.post('/setMyText', async function(req, res, next) {
 
     await connection.commit();
   } catch (err) {
+    console.log(err);
     await connection.rollback();
 
     res.send({success: false, msg: '데이터 저장 실패.'});
@@ -164,13 +163,16 @@ router.post('/setMyText', async function(req, res, next) {
   res.send({success: true, msg: '데이터 저장 성공.'});
 });
 
-router.get('/getTextOneRandomForGuest', async function(req, res, next) {
+router.get('/selectTextOneRandomForGuest', async function(req, res, next) {
+  const param = req.query;
+
   const connection = await pool.getConnection(async conn => conn);
 
   try {
-    const [results, fields] = await connection.query(mybatisMapper.getStatement('youngjak', 'getTextOneRandomForGuest', {}, format));
+    const [results, fields] = await connection.query(mybatisMapper.getStatement('youngjak', 'selectTextOneRandomForGuest', param, format));
     res.send({success: true, msg: '', results});
   } catch (err) {
+    console.log(err);
     res.send({success: false, msg: '데이터 조회 실패.'});
     return;
   } finally {
@@ -230,7 +232,7 @@ router.post('/join', async function(req, res, next) {
   try {
     await connection.beginTransaction();
 
-    let [results] = await connection.query(mybatisMapper.getStatement('youngjak', 'getUserIdCnt', param, format));
+    let [results] = await connection.query(mybatisMapper.getStatement('youngjak', 'selectUserIdCnt', param, format));
 
     if(results[0].USER_ID_CNT === 1) {
       connection.release();
@@ -248,10 +250,11 @@ router.post('/join', async function(req, res, next) {
 
     await connection.commit();
   } catch (err) {
-      await connection.rollback();
+    console.log(err);
+    await connection.rollback();
 
-      res.send({success: false, msg: '데이터 저장 실패.'});
-      return;
+    res.send({success: false, msg: '데이터 저장 실패.'});
+    return;
   } finally {
       connection.release();
   }
@@ -260,6 +263,7 @@ router.post('/join', async function(req, res, next) {
 });
 
 router.post('/login', async function(req, res, next) {
+  console.log('1login');
   const param = req.body;
 
   if(param.userId === undefined || param.userId === null) {
@@ -273,7 +277,7 @@ router.post('/login', async function(req, res, next) {
   const connection = await pool.getConnection(async conn => conn);
 
   try {
-    let [results] = await connection.query(mybatisMapper.getStatement('youngjak', 'getUserIdCnt', param, format));
+    let [results] = await connection.query(mybatisMapper.getStatement('youngjak', 'selectUserIdCnt', param, format));
 
     if(results[0].USER_ID_CNT === 0) {
       connection.release();
@@ -281,7 +285,7 @@ router.post('/login', async function(req, res, next) {
       return;
     }
 
-    [results] = await connection.query(mybatisMapper.getStatement('youngjak', 'getUser', param, format));
+    [results] = await connection.query(mybatisMapper.getStatement('youngjak', 'selectUser', param, format));
 
     if(results.length !== 1) {
       connection.release();
@@ -301,6 +305,7 @@ router.post('/login', async function(req, res, next) {
       res.send({success: true, msg: '', token: jwt.sign({ userId: param.userId, mac: mac }, process.env.JWT_SECRET_KEY)});
     }
   } catch (err) {
+    console.log(err);
     res.send({success: false, msg: '데이터 조회 실패.'});
     return;
   } finally {
